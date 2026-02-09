@@ -54,173 +54,170 @@ def stable_seed(*parts: str) -> int:
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
     html = f"""
-    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-      <div style="
-        width: 100%;
-        border: 2px solid rgba(120,120,120,0.22);
-        border-radius: 18px;
-        background: rgba(255,255,255,0.02);
-        padding: 12px;
-      ">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-          <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
-          <button id="{component_key}_clear" style="
-            border:1px solid rgba(120,120,120,0.25);
-            background: rgba(255,255,255,0.03);
-            border-radius: 999px;
-            padding: 6px 10px;
-            font-weight:900;
-            cursor:pointer;
-          ">지우기</button>
-        </div>
-
-        <div style="margin-top:10px; position:relative;">
-          <canvas id="{component_key}_canvas" style="
-            width: 100%;
-            height: {height}px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.02);
-            touch-action: none;
-            display: block;
-          "></canvas>
-        </div>
-
-        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-          <button id="{component_key}_done" style="
-            border:0;
-            background: rgba(0,0,0,0.75);
-            color:white;
-            border-radius: 12px;
-            padding: 10px 14px;
-            font-weight:900;
-            cursor:pointer;
-          ">필기 저장</button>
-        </div>
-      </div>
-
-      <script>
-  const canvas = document.getElementById("{component_key}_canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  const dpr = window.devicePixelRatio || 1;
-
-  // CSS 크기
-  const cssWidth = canvas.clientWidth;
-  const cssHeight = canvas.clientHeight;
-
-  // 실제 픽셀 버퍼
-  canvas.width = Math.round(cssWidth * dpr);
-  canvas.height = Math.round(cssHeight * dpr);
-
-  // 이후 그리기 좌표는 "CSS px"로 쓰기 위해 transform
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // ✅ 캔버스 내부 실제 그리기 폭/높이(좌표계 기준)로 통일
-  function cw() { return canvas.width / dpr; }
-  function ch() { return canvas.height / dpr; }
-
-  function drawGrid() {
-    const w = cw();
-    const h = ch();
-
-    const cols = 20;
-    const cell = w / cols;
-    const rows = Math.floor(h / cell);
-
-    ctx.save();
-    ctx.clearRect(0, 0, w, h);
-
-    // 배경
-    ctx.fillStyle = "rgba(255,255,255,0.02)";
-    ctx.fillRect(0, 0, w, h);
-
-    // 그리드
-    ctx.globalAlpha = 0.22;
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
-
-    // 0.5 보정(선명도)
-    const off = 0.5;
-
-    ctx.beginPath();
-    for (let c = 0; c <= cols; c++) {
-      const x = c * cell;
-      ctx.moveTo(x + off, 0);
-      ctx.lineTo(x + off, h);
-    }
-    for (let r = 0; r <= rows; r++) {
-      const y = r * cell;
-      ctx.moveTo(0, y + off);
-      ctx.lineTo(w, y + off);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  drawGrid();
-
-  // pen
-  ctx.lineWidth = 7;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(0,0,0,0.92)";
-
-  let drawing = false;
-
-  function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches && e.touches[0];
-    const clientX = touch ? touch.clientX : e.clientX;
-    const clientY = touch ? touch.clientY : e.clientY;
-    return {
-      x: (clientX - rect.left),
-      y: (clientY - rect.top),
-    };
-  }
-
-  function start(e) {
-    e.preventDefault();
-    drawing = true;
-    const p = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-  }
-
-  function move(e) {
-    if (!drawing) return;
-    e.preventDefault();
-    const p = getPos(e);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-  }
-
-  function end(e) {
-    if (!drawing) return;
-    e.preventDefault();
-    drawing = false;
-  }
-
-  canvas.addEventListener("mousedown", start);
-  canvas.addEventListener("mousemove", move);
-  window.addEventListener("mouseup", end);
-
-  canvas.addEventListener("touchstart", start, { passive: false });
-  canvas.addEventListener("touchmove", move, { passive: false });
-  window.addEventListener("touchend", end, { passive: false });
-
-  document.getElementById("{component_key}_clear").addEventListener("click", () => {
-    drawGrid(); // ✅ 그리드 포함 초기화
-  });
-
-  document.getElementById("{component_key}_done").addEventListener("click", () => {
-    const png = canvas.toDataURL("image/png");
-    const payload = { png_b64: png };
-    window.parent.postMessage({ type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload }, "*");
-  });
-</script>
-
+<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+  <div style="
+    width: 100%;
+    border: 2px solid rgba(120,120,120,0.22);
+    border-radius: 18px;
+    background: rgba(255,255,255,0.02);
+    padding: 12px;
+  ">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
+      <button id="{component_key}_clear" style="
+        border:1px solid rgba(120,120,120,0.25);
+        background: rgba(255,255,255,0.03);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-weight:900;
+        cursor:pointer;
+      ">지우기</button>
     </div>
-    """
+
+    <div style="margin-top:10px; position:relative;">
+      <canvas id="{component_key}_canvas" style="
+        width: 100%;
+        height: {height}px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.02);
+      "></canvas>
+    </div>
+
+    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+      <button id="{component_key}_done" style="
+        border:0;
+        background: rgba(0,0,0,0.75);
+        color:white;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight:900;
+        cursor:pointer;
+      ">필기 저장</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("{component_key}_canvas");
+    const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
+
+    const dpr = window.devicePixelRatio || 1;
+
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    function cw() {{
+      return canvas.width / dpr;
+    }}
+
+    function ch() {{
+      return canvas.height / dpr;
+    }}
+
+    function drawGrid() {{
+      const w = cw();
+      const h = ch();
+
+      const cols = 20;
+      const cell = w / cols;
+      const rows = Math.floor(h / cell);
+
+      ctx.save();
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.fillStyle = "rgba(255,255,255,0.02)";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.globalAlpha = 0.22;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+
+      const off = 0.5;
+
+      ctx.beginPath();
+      for (let c = 0; c <= cols; c++) {{
+        const x = c * cell;
+        ctx.moveTo(x + off, 0);
+        ctx.lineTo(x + off, h);
+      }}
+      for (let r = 0; r <= rows; r++) {{
+        const y = r * cell;
+        ctx.moveTo(0, y + off);
+        ctx.lineTo(w, y + off);
+      }}
+      ctx.stroke();
+      ctx.restore();
+    }}
+
+    drawGrid();
+
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+
+    let drawing = false;
+
+    function getPos(e) {{
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches && e.touches[0];
+      const clientX = touch ? touch.clientX : e.clientX;
+      const clientY = touch ? touch.clientY : e.clientY;
+      return {{
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      }};
+    }}
+
+    function start(e) {{
+      e.preventDefault();
+      drawing = true;
+      const p = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }}
+
+    function move(e) {{
+      if (!drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }}
+
+    function end(e) {{
+      if (!drawing) return;
+      e.preventDefault();
+      drawing = false;
+    }}
+
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+
+    canvas.addEventListener("touchstart", start, {{ passive: false }});
+    canvas.addEventListener("touchmove", move, {{ passive: false }});
+    canvas.addEventListener("touchend", end, {{ passive: false }});
+
+    document.getElementById("{component_key}_clear").addEventListener("click", () => {{
+      drawGrid();
+    }});
+
+    document.getElementById("{component_key}_done").addEventListener("click", () => {{
+      const png = canvas.toDataURL("image/png");
+      const payload = {{ png_b64: png }};
+      window.parent.postMessage(
+        {{ type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload }},
+        "*"
+      );
+    });
+  </script>
+</div>
+"""
     return components.html(html, height=height + 130, scrolling=False)
 
 # ============================================================
