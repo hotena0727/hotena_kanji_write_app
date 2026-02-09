@@ -79,12 +79,43 @@ def handwriting_canvas(component_key: str, height: int = 320):
             width: 100%;
             height: {height}px;
             border-radius: 14px;
-            background:
-              linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px) 0 0/48px 48px,
-              linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px) 0 0/48px 48px,
-              rgba(255,255,255,0.02);
+            background: rgba(255,255,255,0.02);
           "></canvas>
         </div>
+
+        function drawGrid() {
+          // CSS 픽셀 기준으로 그리기(우리는 이미 ctx를 DPR로 맞췄으니 px 단위 OK)
+          const w = canvas.clientWidth;
+          const h = canvas.clientHeight;
+
+          // ✅ 가로 칸 수를 고정(원고지 느낌): 20칸 추천 (원하면 15/18/24로 바꿔도 됨)
+          const cols = 20;
+          const cell = w / cols;           // 폭이 정확히 cols칸으로 나뉨 → 끝 절대 안 잘림
+          const rows = Math.floor(h / cell);
+
+          // 배경 지우고(필기까지 지우면 안 되니, "초기 그리드"용으로만 쓰려면 별도 레이어가 필요)
+          // 여기서는 "초기 로딩/지우기 버튼"에서만 그리드를 다시 그리는 방식 추천
+
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    
+          ctx.beginPath();
+          for (let c = 0; c <= cols; c++) {
+            const x = c * cell;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+          }
+          for (let r = 0; r <= rows; r++) {
+            const y = r * cell;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
 
         <div style="margin-top:10px; display:flex; justify-content:flex-end;">
           <button id="{component_key}_done" style="
@@ -112,6 +143,7 @@ def handwriting_canvas(component_key: str, height: int = 320):
 
         // 좌표계를 DPR만큼 스케일
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrid();
 
 
         // pen
