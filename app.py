@@ -23,6 +23,8 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", "")
 
+st.write("SUPABASE_URL =", SUPABASE_URL)
+
 if not SUPABASE_URL or not SUPABASE_ANON_KEY:
     st.error("st.secrets에 SUPABASE_URL / SUPABASE_ANON_KEY를 설정해 주세요.")
     st.stop()
