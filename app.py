@@ -99,116 +99,126 @@ def handwriting_canvas(component_key: str, height: int = 320):
       </div>
 
       <script>
-        const canvas = document.getElementById("{component_key}_canvas");
-        const ctx = canvas.getContext("2d", {{ willReadFrequently: true }});
+  const canvas = document.getElementById("{component_key}_canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-        const dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio || 1;
 
-        // ✅ CSS 픽셀 크기
-        const cssWidth = canvas.clientWidth;
-        const cssHeight = canvas.clientHeight;
+  // CSS 크기
+  const cssWidth = canvas.clientWidth;
+  const cssHeight = canvas.clientHeight;
 
-        // ✅ 실제 픽셀 해상도를 DPR로 올림
-        canvas.width = Math.floor(cssWidth * dpr);
-        canvas.height = Math.floor(cssHeight * dpr);
+  // 실제 픽셀 버퍼
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
 
-        // ✅ 이후 모든 그리기 좌표는 "CSS 픽셀" 기준으로 사용
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 이후 그리기 좌표는 "CSS px"로 쓰기 위해 transform
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        function drawGrid() {{
-          const w = canvas.clientWidth;
-          const h = canvas.clientHeight;
+  // ✅ 캔버스 내부 실제 그리기 폭/높이(좌표계 기준)로 통일
+  function cw() { return canvas.width / dpr; }
+  function ch() { return canvas.height / dpr; }
 
-          // ✅ 가로 칸 수 고정 (원고지 느낌)
-          const cols = 20;   // 필요하면 15/18/24로 변경 가능
-          const cell = w / cols;
-          const rows = Math.floor(h / cell);
+  function drawGrid() {
+    const w = cw();
+    const h = ch();
 
-          ctx.save();
-          ctx.globalAlpha = 0.22;
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    const cols = 20;
+    const cell = w / cols;
+    const rows = Math.floor(h / cell);
 
-          ctx.beginPath();
-          for (let c = 0; c <= cols; c++) {{
-            const x = c * cell;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, h);
-          }}
-          for (let r = 0; r <= rows; r++) {{
-            const y = r * cell;
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-          }}
-          ctx.stroke();
-          ctx.restore();
-        }}
+    ctx.save();
+    ctx.clearRect(0, 0, w, h);
 
-        // ✅ 초기 그리드
-        drawGrid();
+    // 배경
+    ctx.fillStyle = "rgba(255,255,255,0.02)";
+    ctx.fillRect(0, 0, w, h);
 
-        // pen
-        ctx.lineWidth = 7;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.strokeStyle = "rgba(0,0,0,0.92)";
+    // 그리드
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
 
-        let drawing = false;
+    // 0.5 보정(선명도)
+    const off = 0.5;
 
-        function getPos(e) {{
-          const rect = canvas.getBoundingClientRect();
-          const touch = e.touches && e.touches[0];
-          const clientX = touch ? touch.clientX : e.clientX;
-          const clientY = touch ? touch.clientY : e.clientY;
+    ctx.beginPath();
+    for (let c = 0; c <= cols; c++) {
+      const x = c * cell;
+      ctx.moveTo(x + off, 0);
+      ctx.lineTo(x + off, h);
+    }
+    for (let r = 0; r <= rows; r++) {
+      const y = r * cell;
+      ctx.moveTo(0, y + off);
+      ctx.lineTo(w, y + off);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
 
-          // ✅ DPR transform 이후이므로 CSS 픽셀 좌표 그대로 사용
-          const x = (clientX - rect.left);
-          const y = (clientY - rect.top);
-          return {{x, y}};
-        }}
+  drawGrid();
 
-        function start(e) {{
-          e.preventDefault();
-          drawing = true;
-          const p = getPos(e);
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-        }}
+  // pen
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(0,0,0,0.92)";
 
-        function move(e) {{
-          if (!drawing) return;
-          e.preventDefault();
-          const p = getPos(e);
-          ctx.lineTo(p.x, p.y);
-          ctx.stroke();
-        }}
+  let drawing = false;
 
-        function end(e) {{
-          if (!drawing) return;
-          e.preventDefault();
-          drawing = false;
-        }}
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches && e.touches[0];
+    const clientX = touch ? touch.clientX : e.clientX;
+    const clientY = touch ? touch.clientY : e.clientY;
+    return {
+      x: (clientX - rect.left),
+      y: (clientY - rect.top),
+    };
+  }
 
-        canvas.addEventListener("mousedown", start);
-        canvas.addEventListener("mousemove", move);
-        window.addEventListener("mouseup", end);
+  function start(e) {
+    e.preventDefault();
+    drawing = true;
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
 
-        canvas.addEventListener("touchstart", start, {{passive:false}});
-        canvas.addEventListener("touchmove", move, {{passive:false}});
-        window.addEventListener("touchend", end, {{passive:false}});
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
 
-        document.getElementById("{component_key}_clear").addEventListener("click", () => {{
-          // ✅ clearRect는 "CSS 픽셀" 기준으로
-          ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-          drawGrid(); // ✅ 지운 후 그리드 다시
-        }});
+  function end(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    drawing = false;
+  }
 
-        document.getElementById("{component_key}_done").addEventListener("click", () => {{
-          const png = canvas.toDataURL("image/png"); // data:image/png;base64,...
-          const payload = {{ png_b64: png }};
-          window.parent.postMessage({{ type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload }}, "*");
-        }});
-      </script>
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+
+  canvas.addEventListener("touchstart", start, { passive: false });
+  canvas.addEventListener("touchmove", move, { passive: false });
+  window.addEventListener("touchend", end, { passive: false });
+
+  document.getElementById("{component_key}_clear").addEventListener("click", () => {
+    drawGrid(); // ✅ 그리드 포함 초기화
+  });
+
+  document.getElementById("{component_key}_done").addEventListener("click", () => {
+    const png = canvas.toDataURL("image/png");
+    const payload = { png_b64: png };
+    window.parent.postMessage({ type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload }, "*");
+  });
+</script>
+
     </div>
     """
     return components.html(html, height=height + 130, scrolling=False)
