@@ -49,9 +49,71 @@ def stable_seed(*parts: str) -> int:
 
 
 # ============================================================
+# ✅ Dual Buttons Component (모바일에서도 무조건 한 줄)
+#   - 클릭 시 {"clicked": "left"|"right"} 반환
+# ============================================================
+def dual_buttons(component_key: str, left_label: str, right_label: str, height: int = 62):
+    html = r"""
+<div style="width:100%; box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+  <div style="display:flex; gap:10px; width:100%;">
+    <button id="__KEY___left" style="
+      flex:1 1 0;
+      width:100%;
+      border:1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      padding: 12px 10px;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    ">__LEFT__</button>
+
+    <button id="__KEY___right" style="
+      flex:1 1 0;
+      width:100%;
+      border:1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      padding: 12px 10px;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    ">__RIGHT__</button>
+  </div>
+
+  <script>
+    const leftBtn = document.getElementById("__KEY___left");
+    const rightBtn = document.getElementById("__KEY___right");
+
+    leftBtn.addEventListener("click", () => {
+      window.parent.postMessage(
+        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "left" } },
+        "*"
+      );
+    });
+
+    rightBtn.addEventListener("click", () => {
+      window.parent.postMessage(
+        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "right" } },
+        "*"
+      );
+    });
+  </script>
+</div>
+"""
+    html = (
+        html.replace("__KEY__", component_key)
+        .replace("__LEFT__", left_label)
+        .replace("__RIGHT__", right_label)
+    )
+    return components.html(html, height=height, scrolling=False)
+
+
+# ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
 #   - "필기 저장" 버튼 누르면 base64 PNG를 반환
-#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤) 나오도록 수정
+#   - ✅ 오른쪽 잘림 해결: 마지막 그리드 선을 -0.5로 처리
+#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤)
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
     # f-string을 쓰지 않고, 치환 토큰만 replace로 바꿔서
@@ -136,14 +198,14 @@ def handwriting_canvas(component_key: str, height: int = 320):
       const w = cw();
       const h = ch();
 
-      // ✅ 가로 칸 수 고정 → 끝선 정확히 맞춰짐(잘림 방지)
+      // ✅ 가로 칸 수 고정 → 끝선 정확히 맞춤
       const cols = 20;
       const cell = w / cols;
       const rows = Math.floor(h / cell);
 
       ctx.save();
 
-      // 배경+그리드 다시 그리기 (지우기 시에도 동일)
+      // 배경+그리드 다시 그리기
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "rgba(255,255,255,0.02)";
       ctx.fillRect(0, 0, w, h);
@@ -152,22 +214,40 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
 
-      // 픽셀 스냅(선이 흐릿해지는 것 방지)
+      // ✅ 핵심: 마지막 선은 +0.5가 아니라 -0.5로(캔버스 밖으로 나가서 잘리는 문제 해결)
       const off = 0.5;
 
       ctx.beginPath();
-      for (let c = 0; c <= cols; c++) {
-        const x = c * cell;
-        ctx.moveTo(x + off, 0);
-        ctx.lineTo(x + off, h);
-      }
-      for (let r = 0; r <= rows; r++) {
-        const y = r * cell;
-        ctx.moveTo(0, y + off);
-        ctx.lineTo(w, y + off);
-      }
-      ctx.stroke();
 
+      for (let c = 0; c <= cols; c++) {
+        const rawX = c * cell;
+        let x = rawX;
+
+        if (c === cols) {
+          x = w - off;      // ✅ 마지막 세로선은 내부로
+        } else {
+          x = rawX + off;   // ✅ 나머지는 픽셀 스냅
+        }
+
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+
+      for (let r = 0; r <= rows; r++) {
+        const rawY = r * cell;
+        let y = rawY;
+
+        if (r === rows) {
+          y = h - off;      // ✅ 마지막 가로선도 내부로
+        } else {
+          y = rawY + off;
+        }
+
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -470,95 +550,83 @@ def main_app():
 
     st.divider()
 
-    # ✅ [수정] 채점/다음 버튼을 "한 줄"로 고정 (모바일에서도 한 줄)
-    st.markdown(
-        """
-<style>
-/* 이 컨테이너 안의 2개 버튼을 무조건 한 줄로 */
-.kww-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-}
-.kww-row > div {
-  flex: 1 1 0;
-}
-.kww-row .stButton > button {
-  width: 100% !important;
-  white-space: nowrap !important;
-}
-</style>
-""",
-        unsafe_allow_html=True,
+    # ============================================================
+    # ✅ (요청) 채점/다음 문제로: 모바일에서도 항상 한 줄
+    #   - Streamlit columns는 모바일에서 스택될 수 있어서
+    #   - HTML 컴포넌트 2버튼으로 고정
+    # ============================================================
+    action = dual_buttons(
+        component_key=f"act_{today_kst_str()}_{bucket}_{qid}_{idx}",
+        left_label="🟦 채점 (정답 보기)",
+        right_label="⏭️ 다음 문제로",
     )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        btn_grade = st.button("🟦 채점 (정답 보기)", use_container_width=True)
-    with c2:
-        btn_next = st.button("⏭️ 다음 문제로", use_container_width=True)
-
-    if btn_grade:
-        st.session_state.revealed = True
-
-    if btn_next:
-        st.session_state.idx = idx + 1
-        st.session_state.revealed = False
-        st.session_state.last_canvas = None
-        st.rerun()
+    if action and isinstance(action, dict):
+        clicked = action.get("clicked")
+        if clicked == "left":
+            st.session_state.revealed = True
+        elif clicked == "right":
+            st.session_state.idx = idx + 1
+            st.session_state.revealed = False
+            st.session_state.last_canvas = None
+            st.rerun()
 
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
         st.markdown(f"**{answer_kanji}**")
         st.caption("정답을 확인했으면 아래에서 스스로 정/오를 선택해 주세요.")
 
-        # ✅ [수정] 정답/오답 버튼도 "한 줄"로 고정 (모바일에서도 한 줄)
-        g1, g2 = st.columns(2)
+        # ============================================================
+        # ✅ (요청) 정답/오답: 모바일에서도 항상 한 줄
+        # ============================================================
+        grade_action = dual_buttons(
+            component_key=f"grade_{today_kst_str()}_{bucket}_{qid}_{idx}",
+            left_label="⭕ 정답",
+            right_label="❌ 오답",
+        )
 
-        with g1:
-            btn_correct = st.button("⭕ 정답", use_container_width=True, type="primary")
-        with g2:
-            btn_wrong = st.button("❌ 오답", use_container_width=True)
+        if grade_action and isinstance(grade_action, dict):
+            gclicked = grade_action.get("clicked")
 
-        if btn_correct:
-            try:
-                insert_attempt(
-                    user_id=user_id,
-                    user_email=user_email,
-                    qid=qid,
-                    bucket=bucket,
-                    level=level,
-                    self_grade="correct",
-                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                )
-            except Exception as e:
-                st.error(f"저장 실패: {e}")
-                st.stop()
+            if gclicked == "left":
+                try:
+                    insert_attempt(
+                        user_id=user_id,
+                        user_email=user_email,
+                        qid=qid,
+                        bucket=bucket,
+                        level=level,
+                        self_grade="correct",
+                        drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
+                    )
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+                    st.stop()
 
-            st.session_state.idx = idx + 1
-            st.session_state.revealed = False
-            st.session_state.last_canvas = None
-            st.rerun()
+                st.session_state.idx = idx + 1
+                st.session_state.revealed = False
+                st.session_state.last_canvas = None
+                st.rerun()
 
-        if btn_wrong:
-            try:
-                insert_attempt(
-                    user_id=user_id,
-                    user_email=user_email,
-                    qid=qid,
-                    bucket=bucket,
-                    level=level,
-                    self_grade="wrong",
-                    drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
-                )
-            except Exception as e:
-                st.error(f"저장 실패: {e}")
-                st.stop()
+            elif gclicked == "right":
+                try:
+                    insert_attempt(
+                        user_id=user_id,
+                        user_email=user_email,
+                        qid=qid,
+                        bucket=bucket,
+                        level=level,
+                        self_grade="wrong",
+                        drawing_png_b64=st.session_state.last_canvas if save_drawing else None,
+                    )
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+                    st.stop()
 
-            st.session_state.idx = idx + 1
-            st.session_state.revealed = False
-            st.session_state.last_canvas = None
-            st.rerun()
+                st.session_state.idx = idx + 1
+                st.session_state.revealed = False
+                st.session_state.last_canvas = None
+                st.rerun()
 
 
 # ============================================================
