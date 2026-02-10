@@ -53,179 +53,161 @@ def stable_seed(*parts: str) -> int:
 #   - "필기 저장" 버튼 누르면 base64 PNG를 반환
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
-    # f-string을 쓰지 않고, 치환 토큰만 replace로 바꿔서
-    # JS의 { } 때문에 SyntaxError 나는 문제를 원천 차단합니다.
-    html = r"""
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <div style="
-    width: 100%;
-    border: 2px solid rgba(120,120,120,0.22);
-    border-radius: 18px;
-    background: rgba(255,255,255,0.02);
-    padding: 12px;
-    box-sizing: border-box;
-  ">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
-      <button id="__KEY___clear" style="
-        border:1px solid rgba(120,120,120,0.25);
-        background: rgba(255,255,255,0.03);
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-weight:900;
-        cursor:pointer;
-      ">지우기</button>
-    </div>
-
-    <div style="margin-top:10px; position:relative;">
-      <canvas id="__KEY___canvas" style="
+    html = f"""
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+      <div style="
         width: 100%;
-        height: __H__px;
-        border-radius: 14px;
+        border: 2px solid rgba(120,120,120,0.22);
+        border-radius: 18px;
         background: rgba(255,255,255,0.02);
-        display:block;
-      "></canvas>
+        padding: 12px;
+      ">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
+          <button id="{component_key}_clear" style="
+            border:1px solid rgba(120,120,120,0.25);
+            background: rgba(255,255,255,0.03);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-weight:900;
+            cursor:pointer;
+          ">지우기</button>
+        </div>
+
+        <div style="margin-top:10px; position:relative;">
+          <canvas id="{component_key}_canvas" style="
+            width: 100%;
+            height: {height}px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.02);
+          "></canvas>
+        </div>
+
+        function drawGrid() {
+          // CSS 픽셀 기준으로 그리기(우리는 이미 ctx를 DPR로 맞췄으니 px 단위 OK)
+          const w = canvas.clientWidth;
+          const h = canvas.clientHeight;
+
+          // ✅ 가로 칸 수를 고정(원고지 느낌): 20칸 추천 (원하면 15/18/24로 바꿔도 됨)
+          const cols = 20;
+          const cell = w / cols;           // 폭이 정확히 cols칸으로 나뉨 → 끝 절대 안 잘림
+          const rows = Math.floor(h / cell);
+
+          // 배경 지우고(필기까지 지우면 안 되니, "초기 그리드"용으로만 쓰려면 별도 레이어가 필요)
+          // 여기서는 "초기 로딩/지우기 버튼"에서만 그리드를 다시 그리는 방식 추천
+
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    
+          ctx.beginPath();
+          for (let c = 0; c <= cols; c++) {
+            const x = c * cell;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+          }
+          for (let r = 0; r <= rows; r++) {
+            const y = r * cell;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+
+        <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+          <button id="{component_key}_done" style="
+            border:0;
+            background: rgba(0,0,0,0.75);
+            color:white;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-weight:900;
+            cursor:pointer;
+          ">필기 저장</button>
+        </div>
+      </div>
+
+      <script>
+        const canvas = document.getElementById("{component_key}_canvas");
+        const ctx = canvas.getContext("2d");
+        const dpr = window.devicePixelRatio || 1;
+        const cssWidth = canvas.clientWidth;
+        const cssHeight = canvas.clientHeight;
+
+        // 실제 픽셀 해상도를 DPR에 맞춰 키우기
+        canvas.width = Math.floor(cssWidth * dpr);
+        canvas.height = Math.floor(cssHeight * dpr);
+
+        // 좌표계를 DPR만큼 스케일
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrid();
+
+
+        // pen
+        ctx.lineWidth = 7;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "rgba(0,0,0,0.92)";
+
+        let drawing = false;
+
+        function getPos(e) {{
+          const rect = canvas.getBoundingClientRect();
+          const touch = e.touches && e.touches[0];
+          const clientX = touch ? touch.clientX : e.clientX;
+          const clientY = touch ? touch.clientY : e.clientY;
+          const x = (clientX - rect.left) * (canvas.width / rect.width);
+          const y = (clientY - rect.top) * (canvas.height / rect.height);
+          return {{x, y}};
+        }}
+
+        function start(e) {{
+          e.preventDefault();
+          drawing = true;
+          const p = getPos(e);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+        }}
+
+        function move(e) {{
+          if (!drawing) return;
+          e.preventDefault();
+          const p = getPos(e);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        }}
+
+        function end(e) {{
+          if (!drawing) return;
+          e.preventDefault();
+          drawing = false;
+        }}
+
+        canvas.addEventListener("mousedown", start);
+        canvas.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+
+        canvas.addEventListener("touchstart", start, {{passive:false}});
+        canvas.addEventListener("touchmove", move, {{passive:false}});
+        window.addEventListener("touchend", end, {{passive:false}});
+
+        document.getElementById("{component_key}_clear").addEventListener("click", () => {{
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+        }});
+
+        document.getElementById("{component_key}_done").addEventListener("click", () => {{
+          const png = canvas.toDataURL("image/png"); // data:image/png;base64,...
+          const payload = {{ png_b64: png }};
+          window.parent.postMessage({{ type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload }}, "*");
+        }});
+      </script>
     </div>
-
-    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-      <button id="__KEY___done" style="
-        border:0;
-        background: rgba(0,0,0,0.75);
-        color:white;
-        border-radius: 12px;
-        padding: 10px 14px;
-        font-weight:900;
-        cursor:pointer;
-      ">필기 저장</button>
-    </div>
-  </div>
-
-  <script>
-    const canvas = document.getElementById("__KEY___canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-    const dpr = window.devicePixelRatio || 1;
-
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
-
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
-
-    // 좌표계를 CSS 픽셀 기준으로
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    function cw() { return canvas.width / dpr; }
-    function ch() { return canvas.height / dpr; }
-
-    function drawGrid() {
-      const w = cw();
-      const h = ch();
-
-      // ✅ 화면 폭을 cols로 정확히 나눔 → 오른쪽 절대 안 잘림
-      const cols = 20;
-      const cell = w / cols;
-      const rows = Math.floor(h / cell);
-
-      ctx.save();
-
-      // 배경+그리드 다시 그리기 (지우기 시에도 동일)
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.02)";
-      ctx.fillRect(0, 0, w, h);
-
-      ctx.globalAlpha = 0.22;
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0,0,0,0.25)";
-
-      // 픽셀 스냅(선이 흐릿해지는 것 방지)
-      const off = 0.5;
-
-      ctx.beginPath();
-      for (let c = 0; c <= cols; c++) {
-        const x = c * cell;
-        ctx.moveTo(x + off, 0);
-        ctx.lineTo(x + off, h);
-      }
-      for (let r = 0; r <= rows; r++) {
-        const y = r * cell;
-        ctx.moveTo(0, y + off);
-        ctx.lineTo(w, y + off);
-      }
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
-    drawGrid();
-
-    // pen
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(0,0,0,0.92)";
-
-    let drawing = false;
-
-    function getPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches && e.touches[0];
-      const clientX = touch ? touch.clientX : e.clientX;
-      const clientY = touch ? touch.clientY : e.clientY;
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
-    }
-
-    function start(e) {
-      e.preventDefault();
-      drawing = true;
-      const p = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-    }
-
-    function move(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      const p = getPos(e);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-    }
-
-    function end(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      drawing = false;
-    }
-
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", end);
-
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", end, { passive: false });
-
-    document.getElementById("__KEY___clear").addEventListener("click", () => {
-      drawGrid();
-    });
-
-    document.getElementById("__KEY___done").addEventListener("click", () => {
-      const png = canvas.toDataURL("image/png");
-      const payload = { png_b64: png };
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload },
-        "*"
-      );
-    });
-  </script>
-</div>
-"""
-
-    html = html.replace("__KEY__", component_key).replace("__H__", str(height))
+    """
     return components.html(html, height=height + 130, scrolling=False)
+
 
 # ============================================================
 # ✅ Auth UI
@@ -428,10 +410,13 @@ def main_app():
     # 문제 표시
     st.markdown("#### Q.")
     st.markdown(f"**{sentence}**")
+    st.caption(f"괄호 안 단어: {target_kana}   ·   내부 레벨: {level}")
 
     if note:
         with st.expander("힌트/노트"):
             st.write(note)
+
+    st.divider()
 
     # 필기
     st.markdown("#### 필기")
