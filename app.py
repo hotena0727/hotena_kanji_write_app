@@ -261,26 +261,25 @@ def auth_block():
     with tab1:
         email = st.text_input("이메일", key="login_email")
         pw = st.text_input("비밀번호", type="password", key="login_pw")
+
         if st.button("로그인", use_container_width=True):
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+
                 st.session_state.user = res.user
                 st.session_state.session = res.session
+
+                # ✅ 핵심: 이 세션으로 앞으로 DB 요청하게 만들기
+                sb.auth.set_session(
+                    res.session.access_token,
+                    res.session.refresh_token,
+                )
+
                 st.success("로그인 완료!")
                 st.rerun()
+
             except Exception as e:
                 st.error(f"로그인 실패: {e}")
-
-    with tab2:
-        email2 = st.text_input("이메일", key="signup_email")
-        pw2 = st.text_input("비밀번호", type="password", key="signup_pw")
-        if st.button("회원가입", use_container_width=True):
-            try:
-                sb.auth.sign_up({"email": email2, "password": pw2})
-                st.success("회원가입 완료! 이메일 인증이 필요할 수 있습니다.")
-            except Exception as e:
-                st.error(f"회원가입 실패: {e}")
-
 
 def require_login() -> bool:
     # 이미 세션 있으면 사용자 정보 갱신 시도
@@ -332,10 +331,12 @@ def insert_attempt(
         "bucket": bucket,
         "level": level,
         "self_grade": self_grade,
-        "drawing_png_b64": drawing_png_b64,
     }
-    sb.table("kanji_writing_attempts").insert(payload).execute()
+    # ✅ 저장 옵션 ON + 실제 값 있을 때만 넣기
+    if drawing_png_b64:
+        payload["drawing_png_b64"] = drawing_png_b64
 
+    sb.table("kanji_writing_attempts").insert(payload).execute()
 
 # ============================================================
 # ✅ Today set builder (유저+날짜+bucket 기준 동일)
@@ -372,6 +373,13 @@ def build_today_set(user_id: str, bucket: str, n: int = 10):
 # ✅ Main UI after login
 # ============================================================
 def main_app():
+    # ✅ rerun 될 때마다 세션이 다시 sb에 주입되어야 RLS 통과
+    if "session" in st.session_state and st.session_state.session:
+        sb.auth.set_session(
+            st.session_state.session.access_token,
+            st.session_state.session.refresh_token,
+        )
+
     user = st.session_state.user
     user_id = str(user.id)
     user_email = user.email or ""
@@ -411,6 +419,14 @@ def main_app():
         key="bucket",
     )
 
+    # ✅ Streamlit rerun 대비: 세션을 Supabase client에 다시 주입
+    if "session" in st.session_state and st.session_state.session:
+    sb.auth.set_session(
+        st.session_state.session.access_token,
+        st.session_state.session.refresh_token,
+        )
+
+    
     # ✅ 오늘 세트 재구성 조건: 날짜 or bucket or user 변경
     signature = f"{user_id}|{today_kst_str()}|{bucket}"
     if st.session_state.get("today_signature") != signature:
