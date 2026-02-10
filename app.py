@@ -22,29 +22,34 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 st.markdown(
     """
 <style>
-/* ✅ 채점/다음 버튼 줄: 모바일에서도 무조건 1줄 2개 */
-.kw-two-btn-row{
-  display:flex;
-  gap: 0.45rem;
-  width:100%;
+/* ✅ 앵커(#kw_row_anchor) 바로 다음 "가로 columns 블록"만: 1줄 고정 */
+#kw_row_anchor + div[data-testid="stHorizontalBlock"]{
+  flex-wrap: nowrap !important;
+  gap: 0.45rem !important;
 }
-.kw-two-btn-row > div{
-  flex: 1 1 0;
-  min-width: 0;          /* 핵심 */
+
+/* ✅ 각 컬럼이 반반 차지 + 줄바꿈 방지 */
+#kw_row_anchor + div[data-testid="stHorizontalBlock"] > div{
+  flex: 1 1 0 !important;
+  min-width: 0 !important;   /* 핵심: 모바일에서 줄바꿈/밀림 방지 */
 }
-.kw-two-btn-row button{
-  width:100% !important;
-  min-width:0 !important;
-  white-space:nowrap !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
+
+/* ✅ 버튼도 폭 100% + 글자 줄바꿈 방지 */
+#kw_row_anchor + div[data-testid="stHorizontalBlock"] button{
+  width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   font-size: clamp(12px, 3.2vw, 16px) !important;
   padding: clamp(10px, 2.8vw, 14px) clamp(8px, 2.4vw, 12px) !important;
 }
 
 @media (max-width: 360px){
-  .kw-two-btn-row{ gap: 0.30rem; }
-  .kw-two-btn-row button{
+  #kw_row_anchor + div[data-testid="stHorizontalBlock"]{
+    gap: 0.30rem !important;
+  }
+  #kw_row_anchor + div[data-testid="stHorizontalBlock"] button{
     font-size: 12px !important;
     padding: 10px 8px !important;
   }
@@ -53,7 +58,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
 # ============================================================
 # ✅ Supabase
 # ============================================================
@@ -484,8 +488,8 @@ def main_app():
     st.divider()
 
     # ✅ 채점 / 다음 문제 (모바일에서도 무조건 한 줄 고정)
-    st.markdown('<div class="kw-two-btn-row">', unsafe_allow_html=True)
-
+    st.markdown('<div id="kw_row_anchor"></div>', unsafe_allow_html=True)
+    
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🟦 채점", use_container_width=True, key=f"btn_check_{qid}_{idx}"):
@@ -499,7 +503,6 @@ def main_app():
             st.session_state.last_canvas = None
             st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
