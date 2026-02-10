@@ -38,14 +38,46 @@ div.stButton > button{
   min-width: 0 !important;
 }
 
-/* ✅ 모바일에서 더 작게(잘림 방지 핵심) */
+st.markdown(
+    """
+/* ✅ 모바일에서 좌우 여백(패딩) 때문에 버튼이 밀리는 경우가 많아서 줄여줌 */
 @media (max-width: 520px){
-  div[data-testid="stHorizontalBlock"]{
-    gap: 0.35rem !important;
+  section.main > div.block-container{
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
   }
+}
+
+/* ✅ 컬럼 줄바꿈/간격 최소화 */
+div[data-testid="stHorizontalBlock"]{
+  flex-wrap: nowrap !important;
+  gap: 0.4rem !important;
+}
+
+/* ✅ column이 내용 때문에 최소 폭을 크게 잡지 못하게 */
+div[data-testid="column"]{
+  min-width: 0 !important;
+}
+
+/* ✅ 버튼이 컬럼 폭 안에서 꽉 차게 + 글자 줄바꿈 금지 + 길면 살짝 줄이기 */
+div.stButton > button{
+  width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+
+  /* ✅ 화면 폭에 따라 자동 축소: 핵심 */
+  font-size: clamp(12px, 3.2vw, 16px) !important;
+  padding: clamp(10px, 2.8vw, 14px) clamp(8px, 2.4vw, 12px) !important;
+}
+
+/* ✅ 더 작은 기기에서 gap/패딩을 더 줄여서 ‘무조건’ 들어오게 */
+@media (max-width: 360px){
+  div[data-testid="stHorizontalBlock"]{ gap: 0.25rem !important; }
   div.stButton > button{
-    font-size: 0.90rem !important;
-    padding: 0.75rem 0.55rem !important;
+    font-size: 12px !important;
+    padding: 10px 8px !important;
   }
 }
 </style>
