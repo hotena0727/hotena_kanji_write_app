@@ -49,71 +49,8 @@ def stable_seed(*parts: str) -> int:
 
 
 # ============================================================
-# ✅ Dual Buttons Component (모바일에서도 무조건 한 줄)
-#   - 클릭 시 {"clicked": "left"|"right"} 반환
-# ============================================================
-def dual_buttons(component_key: str, left_label: str, right_label: str, height: int = 62):
-    html = r"""
-<div style="width:100%; box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <div style="display:flex; gap:10px; width:100%;">
-    <button id="__KEY___left" style="
-      flex:1 1 0;
-      width:100%;
-      border:1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      border-radius: 12px;
-      padding: 12px 10px;
-      font-weight: 900;
-      cursor: pointer;
-      white-space: nowrap;
-    ">__LEFT__</button>
-
-    <button id="__KEY___right" style="
-      flex:1 1 0;
-      width:100%;
-      border:1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      border-radius: 12px;
-      padding: 12px 10px;
-      font-weight: 900;
-      cursor: pointer;
-      white-space: nowrap;
-    ">__RIGHT__</button>
-  </div>
-
-  <script>
-    const leftBtn = document.getElementById("__KEY___left");
-    const rightBtn = document.getElementById("__KEY___right");
-
-    leftBtn.addEventListener("click", () => {
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "left" } },
-        "*"
-      );
-    });
-
-    rightBtn.addEventListener("click", () => {
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "right" } },
-        "*"
-      );
-    });
-  </script>
-</div>
-"""
-    html = (
-        html.replace("__KEY__", component_key)
-        .replace("__LEFT__", left_label)
-        .replace("__RIGHT__", right_label)
-    )
-    return components.html(html, height=height, scrolling=False)
-
-
-# ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
 #   - "필기 저장" 버튼 누르면 base64 PNG를 반환
-#   - ✅ 오른쪽 잘림 해결: 마지막 그리드 선을 -0.5로 처리
-#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤)
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
     # f-string을 쓰지 않고, 치환 토큰만 replace로 바꿔서
@@ -140,26 +77,14 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ">지우기</button>
     </div>
 
-    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
-    <div style="margin-top:10px;">
-      <div id="__KEY___scrollwrap" style="
+    <div style="margin-top:10px; position:relative;">
+      <canvas id="__KEY___canvas" style="
         width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
+        height: __H__px;
         border-radius: 14px;
-      ">
-        <div style="width: __CW__px; max-width: none;">
-          <canvas id="__KEY___canvas" style="
-            width: __CW__px;
-            height: __H__px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.02);
-            display:block;
-            touch-action: none;
-          "></canvas>
-        </div>
-      </div>
+        background: rgba(255,255,255,0.02);
+        display:block;
+      "></canvas>
     </div>
 
     <div style="margin-top:10px; display:flex; justify-content:flex-end;">
@@ -181,7 +106,6 @@ def handwriting_canvas(component_key: str, height: int = 320):
 
     const dpr = window.devicePixelRatio || 1;
 
-    // ✅ canvas의 CSS 크기(고정 폭 __CW__px) 기준으로 실제 픽셀 세팅
     const cssWidth = canvas.clientWidth;
     const cssHeight = canvas.clientHeight;
 
@@ -198,14 +122,14 @@ def handwriting_canvas(component_key: str, height: int = 320):
       const w = cw();
       const h = ch();
 
-      // ✅ 가로 칸 수 고정 → 끝선 정확히 맞춤
+      // ✅ 화면 폭을 cols로 정확히 나눔 → 오른쪽 절대 안 잘림
       const cols = 20;
       const cell = w / cols;
       const rows = Math.floor(h / cell);
 
       ctx.save();
 
-      // 배경+그리드 다시 그리기
+      // 배경+그리드 다시 그리기 (지우기 시에도 동일)
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "rgba(255,255,255,0.02)";
       ctx.fillRect(0, 0, w, h);
@@ -214,40 +138,22 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
 
-      // ✅ 핵심: 마지막 선은 +0.5가 아니라 -0.5로(캔버스 밖으로 나가서 잘리는 문제 해결)
+      // 픽셀 스냅(선이 흐릿해지는 것 방지)
       const off = 0.5;
 
       ctx.beginPath();
-
       for (let c = 0; c <= cols; c++) {
-        const rawX = c * cell;
-        let x = rawX;
-
-        if (c === cols) {
-          x = w - off;      // ✅ 마지막 세로선은 내부로
-        } else {
-          x = rawX + off;   // ✅ 나머지는 픽셀 스냅
-        }
-
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
+        const x = c * cell;
+        ctx.moveTo(x + off, 0);
+        ctx.lineTo(x + off, h);
       }
-
       for (let r = 0; r <= rows; r++) {
-        const rawY = r * cell;
-        let y = rawY;
-
-        if (r === rows) {
-          y = h - off;      // ✅ 마지막 가로선도 내부로
-        } else {
-          y = rawY + off;
-        }
-
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
+        const y = r * cell;
+        ctx.moveTo(0, y + off);
+        ctx.lineTo(w, y + off);
       }
-
       ctx.stroke();
+
       ctx.restore();
     }
 
@@ -318,16 +224,8 @@ def handwriting_canvas(component_key: str, height: int = 320):
 </div>
 """
 
-    # ✅ 캔버스 고정 폭(모바일에서 '가로로 길게' 보이게)
-    canvas_width_px = 1200
-
-    html = (
-        html.replace("__KEY__", component_key)
-        .replace("__H__", str(height))
-        .replace("__CW__", str(canvas_width_px))
-    )
+    html = html.replace("__KEY__", component_key).replace("__H__", str(height))
     return components.html(html, height=height + 130, scrolling=False)
-
 
 # ============================================================
 # ✅ Auth UI
@@ -382,7 +280,6 @@ def fetch_sentences(bucket: str):
     )
     st.write("DEBUG fetch:", bucket, "count=", len(res.data or []), "error=", getattr(res, "error", None))
     return res.data or []
-
 
 def fetch_attempted_qids(user_id: str, bucket: str):
     res = (
@@ -471,9 +368,7 @@ def main_app():
             st.rerun()
 
     with top[1]:
-        save_drawing = st.toggle(
-            "필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)"
-        )
+        save_drawing = st.toggle("필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)")
 
     st.divider()
 
@@ -550,22 +445,14 @@ def main_app():
 
     st.divider()
 
-    # ============================================================
-    # ✅ (요청) 채점/다음 문제로: 모바일에서도 항상 한 줄
-    #   - Streamlit columns는 모바일에서 스택될 수 있어서
-    #   - HTML 컴포넌트 2버튼으로 고정
-    # ============================================================
-    action = dual_buttons(
-        component_key=f"act_{today_kst_str()}_{bucket}_{qid}_{idx}",
-        left_label="🟦 채점 (정답 보기)",
-        right_label="⏭️ 다음 문제로",
-    )
-
-    if action and isinstance(action, dict):
-        clicked = action.get("clicked")
-        if clicked == "left":
+    # 채점/정답 표시
+    cols = st.columns([1, 1])
+    with cols[0]:
+        if st.button("🟦 채점 (정답 보기)", use_container_width=True):
             st.session_state.revealed = True
-        elif clicked == "right":
+
+    with cols[1]:
+        if st.button("⏭️ 다음 문제로", use_container_width=True):
             st.session_state.idx = idx + 1
             st.session_state.revealed = False
             st.session_state.last_canvas = None
@@ -576,19 +463,9 @@ def main_app():
         st.markdown(f"**{answer_kanji}**")
         st.caption("정답을 확인했으면 아래에서 스스로 정/오를 선택해 주세요.")
 
-        # ============================================================
-        # ✅ (요청) 정답/오답: 모바일에서도 항상 한 줄
-        # ============================================================
-        grade_action = dual_buttons(
-            component_key=f"grade_{today_kst_str()}_{bucket}_{qid}_{idx}",
-            left_label="⭕ 정답",
-            right_label="❌ 오답",
-        )
-
-        if grade_action and isinstance(grade_action, dict):
-            gclicked = grade_action.get("clicked")
-
-            if gclicked == "left":
+        gcols = st.columns(2)
+        with gcols[0]:
+            if st.button("⭕ 정답", use_container_width=True, type="primary"):
                 try:
                     insert_attempt(
                         user_id=user_id,
@@ -608,7 +485,8 @@ def main_app():
                 st.session_state.last_canvas = None
                 st.rerun()
 
-            elif gclicked == "right":
+        with gcols[1]:
+            if st.button("❌ 오답", use_container_width=True):
                 try:
                     insert_attempt(
                         user_id=user_id,
