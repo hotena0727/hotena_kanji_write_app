@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -17,8 +16,6 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 
 # ============================================================
 # ✅ Supabase
-#   - Streamlit Cloud: st.secrets에 넣기
-#   - 로컬: .streamlit/secrets.toml에 넣기
 # ============================================================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", "")
@@ -44,7 +41,6 @@ def today_kst_str() -> str:
 def stable_seed(*parts: str) -> int:
     s = "|".join(parts)
     h = hashlib.sha256(s.encode("utf-8")).hexdigest()
-    # 32-bit seed
     return int(h[:8], 16)
 
 
@@ -52,33 +48,32 @@ def stable_seed(*parts: str) -> int:
 # ✅ Dual Buttons Component (모바일에서도 무조건 한 줄)
 #   - 클릭 시 {"clicked": "left"|"right"} 반환
 # ============================================================
-def dual_buttons(component_key: str, left_label: str, right_label: str, height: int = 62):
+def dual_buttons(component_key: str, left_label: str, right_label: str, height: int = 70):
     html = r"""
 <div style="width:100%; box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <div style="display:flex; gap:10px; width:100%;">
-    <button id="__KEY___left" style="
+  <style>
+    .kw-btnrow{ display:flex; gap:10px; width:100%; }
+    .kw-btn{
       flex:1 1 0;
       width:100%;
       border:1px solid rgba(120,120,120,0.25);
       background: rgba(255,255,255,0.03);
-      border-radius: 12px;
-      padding: 12px 10px;
+      border-radius: 14px;
+      padding: 14px 10px;
       font-weight: 900;
       cursor: pointer;
       white-space: nowrap;
-    ">__LEFT__</button>
+      font-size: 16px;
+    }
+    /* 모바일에서도 한 줄 유지 + 글자 조금 줄여서 절대 줄바꿈 방지 */
+    @media (max-width: 520px){
+      .kw-btn{ font-size: 15px; padding: 14px 8px; }
+    }
+  </style>
 
-    <button id="__KEY___right" style="
-      flex:1 1 0;
-      width:100%;
-      border:1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      border-radius: 12px;
-      padding: 12px 10px;
-      font-weight: 900;
-      cursor: pointer;
-      white-space: nowrap;
-    ">__RIGHT__</button>
+  <div class="kw-btnrow">
+    <button id="__KEY___left" class="kw-btn">__LEFT__</button>
+    <button id="__KEY___right" class="kw-btn">__RIGHT__</button>
   </div>
 
   <script>
@@ -111,168 +106,163 @@ def dual_buttons(component_key: str, left_label: str, right_label: str, height: 
 
 # ============================================================
 # ✅ Handwriting Canvas (원고지 격자 + 필기)
-#   - "필기 저장" 버튼 누르면 base64 PNG를 반환
-#   - ✅ 오른쪽 잘림 해결: 마지막 그리드 선을 -0.5로 처리
-#   - ✅ 모바일에서도 가로로 길게(좌우 스크롤)
+#   - ✅ 모바일에서 "가로로 더 길게"(예: 160vw) 펼치기 + 좌우 스크롤
+#   - ✅ 오른쪽 끝선 잘림 방지 (마지막 선을 w-0.5 / h-0.5로)
 # ============================================================
 def handwriting_canvas(component_key: str, height: int = 320):
-    # f-string을 쓰지 않고, 치환 토큰만 replace로 바꿔서
-    # JS의 { } 때문에 SyntaxError 나는 문제를 원천 차단합니다.
     html = r"""
 <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-  <div style="
-    width: 100%;
-    border: 2px solid rgba(120,120,120,0.22);
-    border-radius: 18px;
-    background: rgba(255,255,255,0.02);
-    padding: 12px;
-    box-sizing: border-box;
-  ">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <div style="font-weight:900; opacity:0.75;">✍️ 여기 한자를 써 보세요</div>
-      <button id="__KEY___clear" style="
-        border:1px solid rgba(120,120,120,0.25);
-        background: rgba(255,255,255,0.03);
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-weight:900;
-        cursor:pointer;
-      ">지우기</button>
+  <style>
+    /* ✅ 캔버스는 기본: 화면 폭(데스크탑) */
+    .kw-canvas { width: 100%; height: __H__px; display:block; border-radius:14px; background: rgba(255,255,255,0.02); touch-action:none; }
+    /* ✅ 모바일: "가로로 길게" 펼치기 (원고지 느낌) */
+    @media (max-width: 768px){
+      .kw-canvas { width: 160vw; }  /* 여기 숫자만 바꾸면 더 길게/짧게 조절 가능 */
+    }
+
+    .kw-wrap{
+      width: 100%;
+      border: 2px solid rgba(120,120,120,0.22);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.02);
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .kw-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .kw-title{ font-weight:900; opacity:0.75; }
+    .kw-clear{
+      border:1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    /* ✅ 좌우 스크롤 컨테이너 */
+    .kw-scroll{
+      margin-top:10px;
+      width:100%;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling: touch;
+      border-radius:14px;
+    }
+    .kw-bottom{ margin-top:10px; display:flex; justify-content:flex-end; }
+    .kw-save{
+      border:0;
+      background: rgba(0,0,0,0.75);
+      color:white;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+  </style>
+
+  <div class="kw-wrap">
+    <div class="kw-top">
+      <div class="kw-title">✍️ 여기 한자를 써 보세요</div>
+      <button id="__KEY___clear" class="kw-clear">지우기</button>
     </div>
 
-    <!-- ✅ 모바일에서도 '가로로 길게' 보이게: 가로 스크롤 랩 -->
-    <div style="margin-top:10px;">
-      <div id="__KEY___scrollwrap" style="
-        width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        border-radius: 14px;
-      ">
-        <div style="width: __CW__px; max-width: none;">
-          <canvas id="__KEY___canvas" style="
-            width: __CW__px;
-            height: __H__px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.02);
-            display:block;
-            touch-action: none;
-          "></canvas>
-        </div>
-      </div>
+    <div class="kw-scroll">
+      <canvas id="__KEY___canvas" class="kw-canvas"></canvas>
     </div>
 
-    <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-      <button id="__KEY___done" style="
-        border:0;
-        background: rgba(0,0,0,0.75);
-        color:white;
-        border-radius: 12px;
-        padding: 10px 14px;
-        font-weight:900;
-        cursor:pointer;
-      ">필기 저장</button>
+    <div class="kw-bottom">
+      <button id="__KEY___done" class="kw-save">필기 저장</button>
     </div>
   </div>
 
   <script>
     const canvas = document.getElementById("__KEY___canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
     const dpr = window.devicePixelRatio || 1;
 
-    // ✅ canvas의 CSS 크기(고정 폭 __CW__px) 기준으로 실제 픽셀 세팅
-    const cssWidth = canvas.clientWidth;
-    const cssHeight = canvas.clientHeight;
+    function resizeCanvasToCSS(){
+      // CSS 크기(예: 모바일 160vw) 반영된 clientWidth/Height 사용
+      const cssW = canvas.clientWidth;
+      const cssH = canvas.clientHeight;
 
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
 
-    // 좌표계를 CSS 픽셀 기준으로
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 좌표계를 CSS px 기준으로
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-    function cw() { return canvas.width / dpr; }
-    function ch() { return canvas.height / dpr; }
+    function cw(){ return canvas.width / dpr; }
+    function ch(){ return canvas.height / dpr; }
 
-    function drawGrid() {
+    function drawGrid(){
       const w = cw();
       const h = ch();
 
-      // ✅ 가로 칸 수 고정 → 끝선 정확히 맞춤
       const cols = 20;
       const cell = w / cols;
       const rows = Math.floor(h / cell);
 
       ctx.save();
 
-      // 배경+그리드 다시 그리기
-      ctx.clearRect(0, 0, w, h);
+      // 배경
+      ctx.clearRect(0,0,w,h);
       ctx.fillStyle = "rgba(255,255,255,0.02)";
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillRect(0,0,w,h);
 
+      // grid
       ctx.globalAlpha = 0.22;
       ctx.lineWidth = 1;
       ctx.strokeStyle = "rgba(0,0,0,0.25)";
 
-      // ✅ 핵심: 마지막 선은 +0.5가 아니라 -0.5로(캔버스 밖으로 나가서 잘리는 문제 해결)
       const off = 0.5;
-
       ctx.beginPath();
 
-      for (let c = 0; c <= cols; c++) {
+      for(let c=0; c<=cols; c++){
         const rawX = c * cell;
-        let x = rawX;
-
-        if (c === cols) {
-          x = w - off;      // ✅ 마지막 세로선은 내부로
-        } else {
-          x = rawX + off;   // ✅ 나머지는 픽셀 스냅
-        }
-
+        const x = (c === cols) ? (w - off) : (rawX + off); // ✅ 마지막 선은 안쪽으로
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
       }
 
-      for (let r = 0; r <= rows; r++) {
+      for(let r=0; r<=rows; r++){
         const rawY = r * cell;
-        let y = rawY;
-
-        if (r === rows) {
-          y = h - off;      // ✅ 마지막 가로선도 내부로
-        } else {
-          y = rawY + off;
-        }
-
+        const y = (r === rows) ? (h - off) : (rawY + off); // ✅ 마지막 선은 안쪽으로
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
       }
 
       ctx.stroke();
       ctx.restore();
+
+      // pen style (그리드 그린 뒤 세팅 유지)
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(0,0,0,0.92)";
     }
 
+    // 초기 세팅
+    resizeCanvasToCSS();
     drawGrid();
 
-    // pen
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(0,0,0,0.92)";
+    // 화면 회전/리사이즈 시 다시 맞추기(모바일 필수)
+    window.addEventListener("resize", () => {
+      // 리사이즈하면 캔버스가 초기화되므로, 그리드만 다시
+      resizeCanvasToCSS();
+      drawGrid();
+    });
 
     let drawing = false;
 
-    function getPos(e) {
+    function getPos(e){
       const rect = canvas.getBoundingClientRect();
       const touch = e.touches && e.touches[0];
       const clientX = touch ? touch.clientX : e.clientX;
       const clientY = touch ? touch.clientY : e.clientY;
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
+      return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    function start(e) {
+    function start(e){
       e.preventDefault();
       drawing = true;
       const p = getPos(e);
@@ -280,16 +270,16 @@ def handwriting_canvas(component_key: str, height: int = 320):
       ctx.moveTo(p.x, p.y);
     }
 
-    function move(e) {
-      if (!drawing) return;
+    function move(e){
+      if(!drawing) return;
       e.preventDefault();
       const p = getPos(e);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
     }
 
-    function end(e) {
-      if (!drawing) return;
+    function end(e){
+      if(!drawing) return;
       e.preventDefault();
       drawing = false;
     }
@@ -298,9 +288,9 @@ def handwriting_canvas(component_key: str, height: int = 320):
     canvas.addEventListener("mousemove", move);
     window.addEventListener("mouseup", end);
 
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", end, { passive: false });
+    canvas.addEventListener("touchstart", start, { passive:false });
+    canvas.addEventListener("touchmove", move, { passive:false });
+    window.addEventListener("touchend", end, { passive:false });
 
     document.getElementById("__KEY___clear").addEventListener("click", () => {
       drawGrid();
@@ -308,23 +298,17 @@ def handwriting_canvas(component_key: str, height: int = 320):
 
     document.getElementById("__KEY___done").addEventListener("click", () => {
       const png = canvas.toDataURL("image/png");
-      const payload = { png_b64: png };
       window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: payload },
+        { type:"STREAMLIT_SET_COMPONENT_VALUE", value:{ png_b64: png } },
         "*"
       );
     });
   </script>
 </div>
 """
-
-    # ✅ 캔버스 고정 폭(모바일에서 '가로로 길게' 보이게)
-    canvas_width_px = 1200
-
     html = (
         html.replace("__KEY__", component_key)
         .replace("__H__", str(height))
-        .replace("__CW__", str(canvas_width_px))
     )
     return components.html(html, height=height + 130, scrolling=False)
 
@@ -363,7 +347,6 @@ def auth_block():
 
 
 def require_login() -> bool:
-    # 이미 세션 있으면 사용자 정보 갱신 시도
     if "user" in st.session_state and st.session_state.user:
         return True
     return False
@@ -418,7 +401,7 @@ def insert_attempt(
 
 
 # ============================================================
-# ✅ Today set builder (유저+날짜+bucket 기준 동일)
+# ✅ Today set builder
 # ============================================================
 def build_today_set(user_id: str, bucket: str, n: int = 10):
     all_rows = fetch_sentences(bucket)
@@ -426,12 +409,9 @@ def build_today_set(user_id: str, bucket: str, n: int = 10):
         return []
 
     attempted = fetch_attempted_qids(user_id, bucket)
-
-    # 1) 가능한 한 "처음 보는 문장" 우선
     fresh = [r for r in all_rows if r["qid"] not in attempted]
     fallback = [r for r in all_rows if r["qid"] in attempted]
 
-    # 2) seed 고정: (user_id + date + bucket)
     seed = stable_seed(user_id, today_kst_str(), bucket)
     rng = random.Random(seed)
 
@@ -471,17 +451,11 @@ def main_app():
             st.rerun()
 
     with top[1]:
-        save_drawing = st.toggle(
-            "필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)"
-        )
+        save_drawing = st.toggle("필기 이미지 저장", value=False, help="ON이면 필기 PNG(base64)를 DB에 저장합니다. (DB 용량 주의)")
 
     st.divider()
 
-    bucket_label = {
-        "beginner": "초급",
-        "intermediate": "중급",
-        "advanced": "상급",
-    }
+    bucket_label = {"beginner": "초급", "intermediate": "중급", "advanced": "상급"}
 
     bucket = st.segmented_control(
         "레벨 선택",
@@ -491,7 +465,6 @@ def main_app():
         key="bucket",
     )
 
-    # ✅ 오늘 세트 재구성 조건: 날짜 or bucket or user 변경
     signature = f"{user_id}|{today_kst_str()}|{bucket}"
     if st.session_state.get("today_signature") != signature:
         st.session_state.today_signature = signature
@@ -506,9 +479,8 @@ def main_app():
         st.stop()
 
     idx = st.session_state.get("idx", 0)
-    idx = max(0, min(idx, len(today_set)))  # clamp
+    idx = max(0, min(idx, len(today_set)))
 
-    # 완료 화면
     if idx >= len(today_set):
         st.success("✅ 오늘의 10문장 완료!")
         if st.button("오늘 다시 처음부터 보기", use_container_width=True):
@@ -521,16 +493,13 @@ def main_app():
     row = today_set[idx]
     qid = row["qid"]
     sentence = row["sentence"]
-    target_kana = row["target_kana"]
     answer_kanji = row["answer_kanji"]
     level = row["level"]
     note = row.get("note") or ""
 
-    # 진행률
     st.markdown(f"### {bucket_label[bucket]} · {idx+1} / {len(today_set)}")
     st.progress((idx + 1) / len(today_set))
 
-    # 문제 표시
     st.markdown("#### Q.")
     st.markdown(f"**{sentence}**")
 
@@ -538,23 +507,17 @@ def main_app():
         with st.expander("힌트/노트"):
             st.write(note)
 
-    # 필기
     st.markdown("#### 필기")
     canvas_key = f"canvas_{today_kst_str()}_{bucket}_{qid}_{idx}"
     canvas_payload = handwriting_canvas(canvas_key, height=320)
 
-    # 캔버스 값은 "필기 저장" 클릭 때만 들어옴
     if canvas_payload and isinstance(canvas_payload, dict) and canvas_payload.get("png_b64"):
         st.session_state.last_canvas = canvas_payload.get("png_b64")
         st.toast("필기 저장됨", icon="✍️")
 
     st.divider()
 
-    # ============================================================
-    # ✅ (요청) 채점/다음 문제로: 모바일에서도 항상 한 줄
-    #   - Streamlit columns는 모바일에서 스택될 수 있어서
-    #   - HTML 컴포넌트 2버튼으로 고정
-    # ============================================================
+    # ✅ 채점/다음 문제로 (모바일에서도 한 줄)
     action = dual_buttons(
         component_key=f"act_{today_kst_str()}_{bucket}_{qid}_{idx}",
         left_label="🟦 채점 (정답 보기)",
@@ -576,9 +539,7 @@ def main_app():
         st.markdown(f"**{answer_kanji}**")
         st.caption("정답을 확인했으면 아래에서 스스로 정/오를 선택해 주세요.")
 
-        # ============================================================
-        # ✅ (요청) 정답/오답: 모바일에서도 항상 한 줄
-        # ============================================================
+        # ✅ 정답/오답 (모바일에서도 한 줄)
         grade_action = dual_buttons(
             component_key=f"grade_{today_kst_str()}_{bucket}_{qid}_{idx}",
             left_label="⭕ 정답",
