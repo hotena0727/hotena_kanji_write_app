@@ -19,6 +19,7 @@ st.set_page_config(page_title="Kanji Writing (Self-check)", layout="centered")
 #   - "채점 / 다음 문제"를 모바일에서도 무조건 한 줄 2개로 고정
 #   - (필요하면 "정답 / 오답"도 같은 방식으로 한 줄 고정 가능)
 # ============================================================
+st.write("RUNNING FILE:", __file__)
 st.markdown(
     """
 <style>
