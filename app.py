@@ -102,7 +102,7 @@ def ensure_sb_session():
 #   - "필기 저장" 버튼 누르면 base64 PNG 반환
 #   - 모바일에서도 가로로 길게(좌우 스크롤)
 # ============================================================
-def handwriting_canvas(component_key: str, height: int = 320):
+def handwriting_canvas(component_key: str, height: int = 240):
     html = r"""
 <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
   <div style="
