@@ -533,17 +533,24 @@ def main_app():
 
     st.divider()
 
-    action = two_action_buttons(f"act_{qid}_{idx}")
+        # ✅ 채점 / 다음 문제: Streamlit 버튼 2개를 "무조건 한 줄"로 고정
+        st.markdown('<div class="kw-two-btn-row">', unsafe_allow_html=True)
+        c1, c2 = st.columns(2, gap="small")
 
-    if action == "check":
-        st.session_state.revealed = True
-        st.rerun()
+        with c1:
+            if st.button("🟦 채점", use_container_width=True, key=f"btn_check_{qid}_{idx}"):
+                st.session_state.revealed = True
+                st.rerun()
 
-    elif action == "next":
-        st.session_state.idx = idx + 1
-        st.session_state.revealed = False
-        st.session_state.last_canvas = None
-        st.rerun()
+        with c2:
+            if st.button("⏭️ 다음 문제", use_container_width=True, key=f"btn_next_{qid}_{idx}"):
+                st.session_state.idx = idx + 1
+                st.session_state.revealed = False
+                st.session_state.last_canvas = None
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
     
     if st.session_state.get("revealed", False):
         st.markdown("### ✅ 정답")
