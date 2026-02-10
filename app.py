@@ -77,23 +77,20 @@ def dual_buttons(component_key: str, left_label: str, right_label: str, height: 
   </div>
 
   <script>
-    const leftBtn = document.getElementById("__KEY___left");
-    const rightBtn = document.getElementById("__KEY___right");
+      const leftBtn = document.getElementById("__KEY___left");
+      const rightBtn = document.getElementById("__KEY___right");
+    
+      function send(clicked){
+        window.parent.postMessage(
+          { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked, ts: Date.now() } },
+          "*"
+        );
+      }
 
-    leftBtn.addEventListener("click", () => {
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "left" } },
-        "*"
-      );
-    });
+      leftBtn.addEventListener("click", () => send("left"));
+      rightBtn.addEventListener("click", () => send("right"));
+    </script>
 
-    rightBtn.addEventListener("click", () => {
-      window.parent.postMessage(
-        { type: "STREAMLIT_SET_COMPONENT_VALUE", value: { clicked: "right" } },
-        "*"
-      );
-    });
-  </script>
 </div>
 """
     html = (
@@ -528,6 +525,7 @@ def main_app():
         clicked = action.get("clicked")
         if clicked == "left":
             st.session_state.revealed = True
+            st.rerun()  # ✅ 이거 꼭!
         elif clicked == "right":
             st.session_state.idx = idx + 1
             st.session_state.revealed = False
